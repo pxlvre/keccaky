@@ -1,0 +1,7 @@
+[workspace]
+members = ["src/native/tiny_keccak_ffi"]
+resolver = "2"
+
+[workspace.dependencies]
+tiny-keccak = { version = "2.0", features = ["keccak"] }
+rustler = "0.32"

@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Erlang/OTP and Gleam
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: '26.0'
+        gleam-version: '1.0.0'
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    
+    - name: Build Rust NIF
+      run: |
+        cd src/native/tiny_keccak_ffi
+        cargo build --release
+    
+    - name: Build Gleam project
+      run: gleam build
+    
+    - name: Run tests
+      run: |
+        cd src/native/tiny_keccak_ffi
+        cargo test
+        cd ../../..
+        gleam test
+    
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: |
+          Changes in this Release
+          - Updated dependencies
+          - Bug fixes and improvements
+        draft: false
+        prerelease: false

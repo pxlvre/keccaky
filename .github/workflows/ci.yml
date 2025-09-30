@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  rust-test:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Cache cargo index
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Cache cargo build
+      uses: actions/cache@v3
+      with:
+        path: src/native/tiny_keccak_ffi/target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Run Rust tests
+      run: |
+        cd src/native/tiny_keccak_ffi
+        cargo test
+    
+    - name: Run Rust linting
+      run: |
+        cd src/native/tiny_keccak_ffi
+        cargo clippy -- -D warnings
+    
+    - name: Check Rust formatting
+      run: |
+        cd src/native/tiny_keccak_ffi
+        cargo fmt --check
+
+  gleam-test:
+    name: Gleam Tests
+    runs-on: ubuntu-latest
+    needs: rust-test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Erlang/OTP
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: '26.0'
+        gleam-version: '1.0.0'
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    
+    - name: Cache cargo
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          src/native/tiny_keccak_ffi/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Cache Gleam dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          build/packages
+          ~/.cache/gleam
+        key: ${{ runner.os }}-gleam-${{ hashFiles('**/gleam.toml') }}
+    
+    - name: Build Rust NIF
+      run: |
+        cd src/native/tiny_keccak_ffi
+        cargo build --release
+    
+    - name: Download Gleam dependencies
+      run: gleam deps download
+    
+    - name: Build Gleam project
+      run: gleam build
+    
+    - name: Run Gleam tests
+      run: gleam test
+    
+    - name: Check Gleam formatting
+      run: gleam format --check src test
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+    
+    - name: Run security audit
+      run: |
+        cd src/native/tiny_keccak_ffi
+        cargo audit
